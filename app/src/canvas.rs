@@ -88,6 +88,14 @@ fn follow_press(ui: &Ui, rect: Rect, id: egui::Id) -> Vec2 {
 
 /// Paints the preview into `rect`.
 pub fn show(ui: &mut Ui, rect: Rect, design: Option<&Design>, plan: Option<&Plan>, area_mm: (f64, f64), dark: bool) -> CanvasOutput {
+    // When the body's size may have changed (a section of the settings panel opening or
+    // closing), the shell runs the body twice in one pass: a measuring run, then the real one.
+    // The mat takes no layout room of its own, so a measuring run has nothing to do here.
+    // Interacting in it would register the mat's id twice at different rects (egui's
+    // "Second use of widget ID") and apply a drag twice.
+    if craft::ui::runtime::measure::active(ui.ctx()) {
+        return CanvasOutput::default();
+    }
     let response = ui.interact(rect, egui::Id::unique("vectorcut-mat"), Sense::click_and_drag());
     craft::ui::runtime::focus::host_canvas(ui.ctx(), response.id, craft::ui::runtime::focus::KeyUse::CANVAS);
     let dragged = follow_press(ui, rect, response.id.with("press"));

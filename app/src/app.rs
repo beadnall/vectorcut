@@ -9,7 +9,9 @@ use craft::theme::{Mode, ModeChoice};
 use craft::ui::buttons::Button;
 use craft::ui::choice::Checkbox;
 use craft::ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
-use craft::ui::display::Text;
+use craft::ui::contract::RowAlign;
+use craft::ui::display::{Divider, Text};
+use craft::ui::layout_components::Row;
 use craft::ui::form::Field;
 use craft::ui::notices::Notice;
 use craft::ui::pickers::Select;
@@ -309,7 +311,7 @@ impl VectorCut {
         let busy = self.running.is_some();
         let connected = self.connection.is_some();
         let cuttable = self.design.is_some() && self.plan.as_ref().zip(self.design.as_ref()).is_some_and(|(p, d)| p.job(d).is_ok());
-        ui.horizontal_centered(|ui| {
+        Row::new().align(RowAlign::Center).show(ui, |ui, _| {
             if Button::new("Open…").tooltip("Open an SVG file").show(ui).clicked() {
                 self.dialogs.ask(FileDialog::open().title("Open a design").filter("SVG drawing", &["svg"]), Pick::Open);
             }
@@ -318,7 +320,7 @@ impl VectorCut {
             {
                 self.open_path(&path);
             }
-            ui.separator();
+            Divider::vertical().show(ui);
             if Button::new("Test cut").tooltip("Cut a 10 mm square with a triangle in the top-right corner, with the first colour's settings").enabled(connected && !busy).show(ui).clicked() {
                 self.start(RunKind::TestCut);
             }
@@ -357,10 +359,10 @@ impl VectorCut {
             }
             _ => String::new(),
         };
-        ui.horizontal_centered(|ui| {
-            Text::new(machine).show(ui);
-            ui.separator();
-            Text::new(job).show(ui);
+        Row::new().align(RowAlign::Center).show(ui, |ui, _| {
+            Text::new(machine.clone()).show(ui);
+            Divider::vertical().show(ui);
+            Text::new(job.clone()).show(ui);
         });
     }
 
@@ -395,13 +397,13 @@ impl VectorCut {
 
     fn machine_section(&mut self, ui: &mut Ui) {
         let busy = self.running.is_some();
-        Section::new("Machine").show(ui, |ui, _| {
+        Section::new("Machine").id_salt("machine").show(ui, |ui, _| {
             let mut entries: Vec<Entry<usize>> = self.machines.iter().enumerate().map(|(i, m)| Entry::new(i, m.label())).collect();
             entries.push(Entry::new(self.machines.len(), format!("Simulated {}", self.simulated_model().name)));
             let mut pick = self.machine_pick.min(self.machines.len());
             Field::new("Machine").show(ui, |ui, _| Select::new("Machine", Bind::bound(&mut pick), &entries).enabled(!busy).show(ui));
             self.machine_pick = pick;
-            ui.horizontal(|ui| {
+            Row::new().show(ui, |ui, _| {
                 let label = if self.connection.is_some() { "Reconnect" } else { "Connect" };
                 if Button::new(label).enabled(!busy).show(ui).clicked() {
                     self.connect();
@@ -445,10 +447,10 @@ impl VectorCut {
     fn placement_section(&mut self, ui: &mut Ui) {
         let busy = self.running.is_some();
         let Some(plan) = &mut self.plan else { return };
-        Section::new("Placement").show(ui, |ui, _| {
+        Section::new("Placement").id_salt("placement").show(ui, |ui, _| {
             number(ui, "From left", &mut plan.offset_right_mm, 0.0..=2000.0, 1.0, "mm", !busy);
             number(ui, "From top", &mut plan.offset_down_mm, 0.0..=20000.0, 1.0, "mm", !busy);
-            ui.horizontal(|ui| {
+            Row::new().show(ui, |ui, _| {
                 if Button::new("Top-left").enabled(!busy).show(ui).clicked() {
                     plan.offset_right_mm = 0.0;
                     plan.offset_down_mm = 0.0;
@@ -475,7 +477,7 @@ impl VectorCut {
         self.preset_picks.resize(plan.groups.len(), 0);
         for (index, (choice, group)) in plan.groups.iter_mut().zip(&design.groups).enumerate() {
             let title = if group.key.starts_with('#') { format!("Colour {}", group.key) } else { group.key.clone() };
-            Section::new(title).show(ui, |ui, _| {
+            Section::new(title).id_salt(("group", group.key.as_str())).show(ui, |ui, _| {
                 Text::new(format!("{} lines, {:.0} mm", group.paths.len(), group.length_mm())).show(ui);
                 Checkbox::new(Bind::bound(&mut choice.enabled)).label("Cut this colour").enabled(!busy).show(ui);
                 if !choice.enabled {
