@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="40mm" viewBox="0 0 80 40">
+  <!-- A luggage tag: the outline and its hole are cut (black), the line is drawn with a pen (blue). -->
+  <path d="M 10 2 H 76 a 2 2 0 0 1 2 2 V 36 a 2 2 0 0 1 -2 2 H 10 L 2 30 V 10 Z" fill="none" stroke="#000000" stroke-width="0.2"/>
+  <circle cx="10" cy="20" r="3" fill="none" stroke="#000000" stroke-width="0.2"/>
+  <path d="M 20 28 H 70" fill="none" stroke="#1f77b4" stroke-width="0.2"/>
+</svg>

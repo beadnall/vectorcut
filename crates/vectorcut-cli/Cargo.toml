@@ -1,0 +1,19 @@
+[package]
+name = "vectorcut-cli"
+description = "VectorCut on the command line: plan, dry-run and send SVG cuts to a Silhouette"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "vectorcut"
+path = "src/main.rs"
+
+[dependencies]
+vectorcut-core = { workspace = true }
+vectorcut-usb = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[lints]
+workspace = true

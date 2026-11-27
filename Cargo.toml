@@ -1,0 +1,59 @@
+[workspace]
+resolver = "3"
+members = ["crates/vectorcut-core", "crates/vectorcut-usb", "crates/vectorcut-cli", "app"]
+default-members = ["crates/vectorcut-core", "crates/vectorcut-usb", "crates/vectorcut-cli", "app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.95"
+
+[workspace.dependencies]
+vectorcut-core = { path = "crates/vectorcut-core" }
+vectorcut-usb = { path = "crates/vectorcut-usb" }
+
+# The ArtCraft framework: one dependency, one pin, one import root (craft-libs docs/craft-framework.md §2.2).
+# Every crate here takes `craft` from this line and turns on only the features it uses.
+craft = { git = "https://github.com/storytold/craft-libs", rev = "3eb5b528b08211844bc5c95c5a4fd169894d52ff", default-features = false }
+
+kurbo = "0.13"
+nusb = "0.2"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+dbg_macro = "warn"
+
+[profile.dev]
+# The framework is large; keep debug builds quick to link and small on disk.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+
+# craft-libs builds against storytold's forks of egui and winit. A git dependency's own
+# `[patch]` does not reach its consumers, so the same pins are repeated here; keep them in step
+# with the craft-libs rev above (its root Cargo.toml).
+[patch.crates-io]
+ecolor = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+emath = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+epaint = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+epaint_default_fonts = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+egui = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+egui-winit = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+egui-wgpu = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+egui_glow = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+eframe = { git = "https://github.com/storytold/egui.git", rev = "932a73b28560acb1a695533307b2cd0d66a42081" }
+winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }

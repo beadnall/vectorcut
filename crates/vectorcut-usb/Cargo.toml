@@ -1,0 +1,16 @@
+[package]
+name = "vectorcut-usb"
+description = "Talks to Silhouette cutters over USB: discovery, status, firmware and chunked program sending"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+vectorcut-core = { workspace = true }
+nusb = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true

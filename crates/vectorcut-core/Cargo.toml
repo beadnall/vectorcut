@@ -1,0 +1,19 @@
+[package]
+name = "vectorcut-core"
+description = "SVG designs to Silhouette cutting jobs: import, ordering, machine table and encoding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+craft = { workspace = true, features = ["plotter", "svg-paths"] }
+kurbo = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
