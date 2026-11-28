@@ -895,6 +895,8 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-imaging",
+ "craft-layers",
+ "craft-menu",
  "craft-pages",
  "craft-plotter",
  "craft-print",
@@ -904,6 +906,7 @@ dependencies = [
  "craft-table",
  "craft-text",
  "craft-theme",
+ "craft-theme-editor",
  "craft-theme-store",
  "craft-timeline",
  "craft-ui",
@@ -911,6 +914,16 @@ dependencies = [
  "craft-window",
  "egui",
  "toml",
+]
+
+[[package]]
+name = "craft-ai-agents"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-ai-integrations?rev=d94a3593adcff504eaaad9e5aee4c84fd2f07a72#d94a3593adcff504eaaad9e5aee4c84fd2f07a72"
+dependencies = [
+ "dirs",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1040,9 +1053,14 @@ name = "craft-control"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
 dependencies = [
+ "craft-ai-agents",
+ "craft-atomic",
  "craft-control-protocol",
+ "craft-flags",
  "craft-platform",
+ "dirs",
  "getrandom 0.3.4",
+ "log",
  "serde",
  "serde_json",
 ]
@@ -1110,6 +1128,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-flags"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
+dependencies = [
+ "craft-atomic",
+ "dirs",
+ "toml_edit",
+]
+
+[[package]]
 name = "craft-font-catalog"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
@@ -1138,6 +1166,7 @@ dependencies = [
  "craft-theme",
  "craft-ui",
  "egui",
+ "epaint_default_fonts",
  "log",
  "serde",
  "skrifa 0.47.0",
@@ -1249,6 +1278,38 @@ dependencies = [
  "craft-tracked",
  "craft-ui-macros",
  "craft-xml",
+ "egui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "craft-layers"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
+dependencies = [
+ "craft-behavior",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-theme",
+ "craft-ui",
+ "egui",
+ "serde",
+]
+
+[[package]]
+name = "craft-menu"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-quit",
+ "craft-theme",
+ "craft-ui",
+ "craft-window",
  "egui",
  "serde",
  "serde_json",
@@ -1455,6 +1516,17 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+]
+
+[[package]]
+name = "craft-theme-editor"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=3eb5b528b08211844bc5c95c5a4fd169894d52ff#3eb5b528b08211844bc5c95c5a4fd169894d52ff"
+dependencies = [
+ "craft-behavior",
+ "craft-theme",
+ "craft-ui",
+ "egui",
 ]
 
 [[package]]

@@ -48,8 +48,10 @@ cargo run -p vectorcut-cli -- test-cut --preset cardstock
 - **Lines.** Every drawable element is a cut line, stroked or filled. Text has to be converted to
   paths first. Clip paths, transforms, `<use>` and CSS are applied.
 - **Groups.** Lines are grouped by stroke colour. A drawing with Inkscape layers and no stroke
-  colours is grouped by layer. Each group gets its own tool, holder, force, speed, blade depth,
-  passes and overcut, or can be left out.
+  colours is grouped by layer. Each group is cut (with a blade), drawn (with a pen) or skipped,
+  with its own holder, force, speed, blade depth, passes and overcut. On a two-holder machine,
+  choosing Cut or Draw takes the holder the machine reports holding a blade or a pen, and a
+  holder with the wrong tool in it is flagged.
 - **Order.** Pens draw before blades cut. Within a group, holes are cut before the outline round
   them, and the next line is the nearest one, entered at its nearest point.
 - **Placement.** The design's page sits at an offset from the mat's top-left corner (drag it on

@@ -7,7 +7,7 @@ use craft::egui::{self, Rect, Ui, UiBuilder, pos2};
 use craft::theme::variant::Tone;
 use craft::theme::{Mode, ModeChoice};
 use craft::ui::buttons::Button;
-use craft::ui::choice::Checkbox;
+use craft::ui::choice::{Checkbox, Segmented};
 use craft::ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use craft::ui::contract::RowAlign;
 use craft::ui::display::{Divider, Text};
@@ -472,31 +472,76 @@ impl VectorCut {
         {
             Notice::new(Tone::Warn, error.to_string()).id_salt("vectorcut-plan").show(ui);
         }
-        let presets: Vec<Entry<usize>> = PRESETS.iter().enumerate().map(|(i, p)| Entry::new(i, p.name)).collect();
+        // Materials are for blades; drawing has its own settings, from the pen preset.
+        let presets: Vec<Entry<usize>> = PRESETS.iter().enumerate().filter(|(_, p)| !p.pen).map(|(i, p)| Entry::new(i, p.name)).collect();
+        let pen = PRESETS.iter().find(|p| p.pen);
+        let actions = [Entry::new(Action::Cut, "Cut"), Entry::new(Action::Draw, "Draw"), Entry::new(Action::Skip, "Skip")];
         let holders = [Entry::new(1u8, "1 (left)"), Entry::new(2u8, "2 (right)")];
         self.preset_picks.resize(plan.groups.len(), 0);
         for (index, (choice, group)) in plan.groups.iter_mut().zip(&design.groups).enumerate() {
             let title = if group.key.starts_with('#') { format!("Colour {}", group.key) } else { group.key.clone() };
             Section::new(title).id_salt(("group", group.key.as_str())).show(ui, |ui, _| {
                 Text::new(format!("{} lines, {:.0} mm", group.paths.len(), group.length_mm())).show(ui);
-                Checkbox::new(Bind::bound(&mut choice.enabled)).label("Cut this colour").enabled(!busy).show(ui);
-                if !choice.enabled {
-                    return;
-                }
-                let before = self.preset_picks[index];
-                let mut pick = before;
-                Field::new("Material").show(ui, |ui, _| Select::new("Material", Bind::bound(&mut pick), &presets).enabled(!busy).show(ui));
-                if pick != before {
-                    self.preset_picks[index] = pick;
+                let before = Action::of(choice.enabled, choice.tool.pen);
+                let mut action = before;
+                Field::new("Action").show(ui, |ui, _| Segmented::new("Action", Bind::bound(&mut action), &actions).enabled(!busy).show(ui));
+                if action != before {
+                    choice.enabled = action != Action::Skip;
                     let holder = choice.tool.holder;
-                    choice.tool = Tool { holder, ..Tool::from_preset(&PRESETS[pick], &model) };
+                    // Switching between blade and pen starts from that tool's own settings: a blade's
+                    // force would press a pen too hard, and a pen has no depth or overcut.
+                    match (action, pen) {
+                        (Action::Cut, _) if choice.tool.pen => {
+                            let pick = self.preset_picks[index];
+                            let preset = PRESETS.get(pick).filter(|p| !p.pen).unwrap_or(&PRESETS[0]);
+                            choice.tool = Tool { holder, ..Tool::from_preset(preset, &model) };
+                        }
+                        (Action::Draw, Some(pen)) if !choice.tool.pen => choice.tool = Tool { holder, ..Tool::from_preset(pen, &model) },
+                        (Action::Draw, None) => choice.tool.pen = true,
+                        _ => {}
+                    }
+                    // And from the holder the machine reports holding that tool.
+                    if action != Action::Skip
+                        && model.two_holders
+                        && let Some(found) = holder_with(&self.tools, choice.tool.pen)
+                    {
+                        choice.tool.holder = found;
+                    }
+                }
+                match action {
+                    Action::Skip => {
+                        Text::new("Left out: the machine neither cuts nor draws these lines.").show(ui);
+                        return;
+                    }
+                    Action::Cut => {
+                        let before = self.preset_picks[index];
+                        let mut pick = before;
+                        Field::new("Material").show(ui, |ui, _| Select::new("Material", Bind::bound(&mut pick), &presets).enabled(!busy).show(ui));
+                        if pick != before {
+                            self.preset_picks[index] = pick;
+                            let holder = choice.tool.holder;
+                            choice.tool = Tool { holder, ..Tool::from_preset(&PRESETS[pick], &model) };
+                        }
+                    }
+                    Action::Draw => {}
                 }
                 let tool = &mut choice.tool;
-                Checkbox::new(Bind::bound(&mut tool.pen)).label("Pen (draw, don't cut)").enabled(!busy).show(ui);
                 if model.two_holders {
                     let mut holder = tool.holder.clamp(1, 2);
                     Field::new("Tool holder").show(ui, |ui, _| Select::new("Tool holder", Bind::bound(&mut holder), &holders).enabled(!busy).show(ui));
                     tool.holder = holder;
+                }
+                // The machine may report a different tool in that holder than this colour needs, as when
+                // the pen and blade were swapped, or the colours were set before the machine connected.
+                if let Some(problem) = holder_problem(&self.tools, tool.holder, tool.pen) {
+                    Notice::new(Tone::Warn, problem).id_salt(("vectorcut-holder", group.key.as_str())).show(ui);
+                    if model.two_holders
+                        && let Some(found) = holder_with(&self.tools, tool.pen)
+                        && found != tool.holder
+                        && Button::new(format!("Use holder {found}")).enabled(!busy).show(ui).clicked()
+                    {
+                        tool.holder = found;
+                    }
                 }
                 integer(ui, "Force", &mut tool.force, 1..=model.max_force, !busy);
                 integer(ui, "Speed", &mut tool.speed, 1..=model.max_speed, !busy);
@@ -512,6 +557,57 @@ impl VectorCut {
             });
         }
     }
+}
+
+/// What the machine does with one colour's lines.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Action {
+    /// With a blade.
+    Cut,
+    /// With a pen.
+    Draw,
+    /// Not at all.
+    Skip,
+}
+
+impl Action {
+    fn of(enabled: bool, pen: bool) -> Action {
+        match (enabled, pen) {
+            (false, _) => Action::Skip,
+            (true, true) => Action::Draw,
+            (true, false) => Action::Cut,
+        }
+    }
+}
+
+fn is_blade(tool: HolderTool) -> bool {
+    matches!(tool, HolderTool::RatchetBlade | HolderTool::AutoBlade | HolderTool::DeepCutBlade | HolderTool::KraftBlade | HolderTool::RotaryBlade)
+}
+
+/// The first holder (numbered from 1) the machine reports holding a pen, or a blade.
+fn holder_with(tools: &[Option<HolderTool>], pen: bool) -> Option<u8> {
+    let at = tools.iter().position(|t| t.is_some_and(|t| if pen { t == HolderTool::Pen } else { is_blade(t) }))?;
+    u8::try_from(at + 1).ok()
+}
+
+/// Why `holder` will not do for a pen (or a blade), as far as the machine's report says; `None`
+/// when it will, or when the machine has not said what it holds.
+fn holder_problem(tools: &[Option<HolderTool>], holder: u8, pen: bool) -> Option<String> {
+    let reported = (*tools.get(usize::from(holder).checked_sub(1)?)?)?;
+    let wanted = if pen { "a pen" } else { "a blade" };
+    let has = match reported {
+        HolderTool::Pen if pen => return None,
+        tool if !pen && is_blade(tool) => return None,
+        HolderTool::Empty => return Some(format!("Holder {holder} is empty; this colour needs {wanted}.")),
+        HolderTool::Error => return Some(format!("Holder {holder} reports a fault.")),
+        HolderTool::Pen => "a pen",
+        HolderTool::RatchetBlade => "a ratchet blade",
+        HolderTool::AutoBlade => "an AutoBlade",
+        HolderTool::DeepCutBlade => "a Deep-Cut blade",
+        HolderTool::KraftBlade => "a Kraft blade",
+        HolderTool::RotaryBlade => "a rotary blade",
+    };
+    Some(format!("Holder {holder} has {has}, not {wanted}."))
 }
 
 /// A labelled number field over an `f64`.
@@ -631,5 +727,117 @@ impl ShellApp for VectorCut {
             return CloseDecision::Hold;
         }
         CloseDecision::Close
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CAMEO4: [Option<HolderTool>; 2] = [Some(HolderTool::AutoBlade), Some(HolderTool::Pen)];
+
+    #[test]
+    fn the_holder_is_the_one_holding_the_tool() {
+        assert_eq!(holder_with(&CAMEO4, true), Some(2));
+        assert_eq!(holder_with(&CAMEO4, false), Some(1));
+        assert_eq!(holder_with(&[Some(HolderTool::Empty), Some(HolderTool::Pen)], false), None);
+        assert_eq!(holder_with(&[], true), None);
+    }
+
+    #[test]
+    fn a_holder_with_the_wrong_tool_is_named() {
+        assert_eq!(holder_problem(&CAMEO4, 1, false), None);
+        assert_eq!(holder_problem(&CAMEO4, 2, true), None);
+        assert_eq!(holder_problem(&CAMEO4, 1, true).as_deref(), Some("Holder 1 has an AutoBlade, not a pen."));
+        assert_eq!(holder_problem(&CAMEO4, 2, false).as_deref(), Some("Holder 2 has a pen, not a blade."));
+        assert_eq!(holder_problem(&[Some(HolderTool::Empty)], 1, true).as_deref(), Some("Holder 1 is empty; this colour needs a pen."));
+        // Nothing known, nothing said: not connected, an unknown code, or a holder past the report.
+        assert_eq!(holder_problem(&[], 1, true), None);
+        assert_eq!(holder_problem(&[None], 1, true), None);
+        assert_eq!(holder_problem(&CAMEO4, 3, true), None);
+        assert_eq!(holder_problem(&CAMEO4, 0, true), None);
+    }
+}
+
+#[cfg(test)]
+mod panel_tests {
+    #![allow(clippy::expect_used)]
+    use super::*;
+    use craft::ui::testing::Fixture;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// The colour sections for the sample tag (black outline, blue line), on a Cameo 4 that reports
+    /// an AutoBlade in holder 1 and a pen in holder 2.
+    fn panel() -> (Fixture, Rc<RefCell<Option<VectorCut>>>) {
+        let app = Rc::new(RefCell::new(None::<VectorCut>));
+        let shown = Rc::clone(&app);
+        let mut fixture = Fixture::new(move |ui| {
+            let mut slot = shown.borrow_mut();
+            let app = slot.get_or_insert_with(|| {
+                let mut app = VectorCut::new(ui.ctx(), None, false);
+                app.tools = vec![Some(HolderTool::AutoBlade), Some(HolderTool::Pen)];
+                app.open_bytes(include_bytes!("../../samples/tag.svg"), "tag.svg");
+                app
+            });
+            app.group_sections(ui);
+        });
+        fixture.room(egui::Vec2::new(PANEL_WIDTH, 2000.0)).settle();
+        (fixture, app)
+    }
+
+    fn black(app: &Rc<RefCell<Option<VectorCut>>>) -> vectorcut_core::job::GroupPlan {
+        let app = app.borrow();
+        let plan = app.as_ref().and_then(|a| a.plan.as_ref()).expect("a plan");
+        plan.groups.iter().find(|g| g.key == "#000000").expect("the black group").clone()
+    }
+
+    fn shows(fixture: &Fixture, text: &str) -> bool {
+        fixture.texts().iter().any(|t| t.text == text)
+    }
+
+    #[test]
+    fn draw_takes_the_pen_holder_and_cut_the_blade_holder() {
+        let (mut fixture, app) = panel();
+        let start = black(&app);
+        assert!(start.enabled && !start.tool.pen && start.tool.holder == 1);
+        assert!(!shows(&fixture, "Holder 1 has an AutoBlade, not a pen."));
+
+        let draw = fixture.by_label("Draw").expect("the black colour's Draw");
+        fixture.click(&draw).settle();
+        let drawn = black(&app);
+        assert!(drawn.enabled && drawn.tool.pen, "Draw picks a pen");
+        assert_eq!(drawn.tool.holder, 2, "the pen is in holder 2");
+        assert_eq!(drawn.tool.depth, None);
+        assert!(fixture.by_label("Material").is_some(), "the blue colour still cuts, so a Material field is left");
+
+        let skip = fixture.by_label("Skip").expect("the black colour's Skip");
+        fixture.click(&skip).settle();
+        assert!(!black(&app).enabled);
+        assert!(shows(&fixture, "Left out: the machine neither cuts nor draws these lines."));
+
+        let cut = fixture.by_label("Cut").expect("the black colour's Cut");
+        fixture.click(&cut).settle();
+        let cutting = black(&app);
+        assert!(cutting.enabled && !cutting.tool.pen);
+        assert_eq!(cutting.tool.holder, 1, "the blade is in holder 1");
+    }
+
+    #[test]
+    fn a_holder_with_the_wrong_tool_is_flagged_and_fixed_in_one_click() {
+        let (mut fixture, app) = panel();
+        let draw = fixture.by_label("Draw").expect("the black colour's Draw");
+        fixture.click(&draw).settle();
+        // As if the pen were set to holder 1 by hand, or the tools were swapped.
+        if let Some(group) = app.borrow_mut().as_mut().and_then(|a| a.plan.as_mut()).and_then(|p| p.groups.iter_mut().find(|g| g.key == "#000000")) {
+            group.tool.holder = 1;
+        }
+        fixture.settle();
+        assert!(shows(&fixture, "Holder 1 has an AutoBlade, not a pen."));
+        let fix = fixture.by_label("Use holder 2").expect("the fix button");
+        fixture.click(&fix).settle();
+        assert_eq!(black(&app).tool.holder, 2);
+        assert!(!shows(&fixture, "Holder 1 has an AutoBlade, not a pen."));
+        assert!(fixture.by_label("Use holder 2").is_none());
     }
 }

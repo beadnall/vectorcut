@@ -17,5 +17,9 @@ craft = { workspace = true, features = ["ui-app", "dialogs"] }
 raw-window-handle = "0.6"
 log = { workspace = true }
 
+[dev-dependencies]
+# The headless UI fixture, for tests that click through the settings panel.
+craft = { workspace = true, features = ["ui-app", "dialogs", "screen-testing"] }
+
 [lints]
 workspace = true
